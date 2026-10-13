@@ -1,0 +1,15 @@
+backend/target/
+frontend/node_modules/
+frontend/dist/
+.idea/
+.vscode/
+*.iml
+.DS_Store
+Thumbs.db
+storage/nodeA/*.chunk
+storage/nodeB/*.chunk
+storage/nodeC/*.chunk
+# Local environment variables and secrets
+.env
+.env.*
+!.env.example
