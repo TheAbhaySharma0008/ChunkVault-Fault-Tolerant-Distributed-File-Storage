@@ -57,6 +57,7 @@ public class MetadataStore {
         fileRepository.save(fileEntity);
     }
 
+    @Transactional
     public FileMetadata get(String fileId) {
         return fileRepository.findByFileId(fileId)
                 .map(this::toFileMetadata)
@@ -73,6 +74,7 @@ public class MetadataStore {
         fileRepository.deleteByFileId(fileId);
     }
 
+    @Transactional
     public List<FileMetadata> getAll() {
         return fileRepository.findAll().stream()
                 .map(this::toFileMetadata)
