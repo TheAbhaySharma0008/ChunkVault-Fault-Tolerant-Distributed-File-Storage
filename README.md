@@ -95,6 +95,16 @@ Backend: `http://localhost:8080`
 
 The backend will automatically create the database schema using Hibernate DDL.
 
+## Testing
+
+### Run Backend Tests
+
+From the project root, run:
+
+```powershell
+cd backend
+mvn clean test
+
 ## Run Frontend
 
 In a second terminal:
