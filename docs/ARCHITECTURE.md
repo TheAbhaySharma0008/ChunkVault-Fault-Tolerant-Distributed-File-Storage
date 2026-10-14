@@ -179,6 +179,24 @@ chunkvault.storage-root=../storage
 chunkvault.nodes=nodeA,nodeB,nodeC
 ```
 
+## Database and Testing Configuration
+
+### Database Persistence
+ChunkVault uses MySQL to persist application metadata.
+Spring Data JPA repositories provide access to the database,
+while Hibernate handles entity persistence.
+
+### Integration Testing
+Backend integration tests use an H2 in-memory database
+configured through test-specific application properties.
+
+This separates the test database configuration from the
+normal application database configuration.
+
+### Transaction Management
+Transactional metadata operations help keep related database
+operations within transaction boundaries.
+
 ## API Endpoints
 
 ### Files
