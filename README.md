@@ -86,15 +86,14 @@ ChunkVault is a distributed file storage system that breaks files into smaller c
 
 ## Run Backend
 
-powershell
+```powershell
 cd backend
 mvn spring-boot:run
-
+```
 
 Backend: `http://localhost:8080`
 
 The backend will automatically create the database schema using Hibernate DDL.
-
 
 ## Testing
 
@@ -102,11 +101,10 @@ The backend will automatically create the database schema using Hibernate DDL.
 
 From the project root, run:
 
-powershell
+```powershell
 cd backend
 mvn clean test
-
-
+```
 
 ## Run Frontend
 
