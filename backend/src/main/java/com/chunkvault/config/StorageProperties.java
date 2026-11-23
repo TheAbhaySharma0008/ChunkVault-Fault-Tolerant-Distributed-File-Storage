@@ -12,6 +12,7 @@ public class StorageProperties {
     private long chunkSizeBytes = 1024 * 1024;
     private String storageRoot = "../storage";
     private List<String> nodes = List.of("nodeA", "nodeB", "nodeC");
+    private int replicationFactor = 2;
 
     public long getChunkSizeBytes() { return chunkSizeBytes; }
     public void setChunkSizeBytes(long chunkSizeBytes) { this.chunkSizeBytes = chunkSizeBytes; }
@@ -21,4 +22,7 @@ public class StorageProperties {
 
     public List<String> getNodes() { return nodes; }
     public void setNodes(List<String> nodes) { this.nodes = nodes; }
+
+    public int getReplicationFactor() { return replicationFactor; }
+    public void setReplicationFactor(int replicationFactor) { this.replicationFactor = replicationFactor; }
 }

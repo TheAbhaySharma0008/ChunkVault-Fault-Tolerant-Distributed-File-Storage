@@ -48,12 +48,42 @@ public class StorageNodeRouter {
         return n;
     }
 
-    /** Round-robin: chunk 0 -> node0, chunk 1 -> node1, ... */
+    /** Round-robin: chunk 0 -> node0, chunk 1 -> node1, ... Skips unavailable nodes. */
     public StorageNode nodeForSequence(int sequenceNumber) {
-        if (orderedNodes.isEmpty()) {
-            throw new IllegalStateException("No storage nodes configured");
+        List<StorageNode> candidates = availableNodes();
+        if (candidates.isEmpty()) {
+            throw new IllegalStateException("No storage nodes available");
         }
-        int idx = Math.floorMod(sequenceNumber, orderedNodes.size());
-        return orderedNodes.get(idx);
+        int idx = Math.floorMod(sequenceNumber, candidates.size());
+        return candidates.get(idx);
+    }
+
+    /**
+     * Returns up to {@code count} nodes that may hold replicas of the chunk at
+     * {@code sequenceNumber}: the primary node first, then the next distinct
+     * nodes in the ring. Unavailable nodes are skipped for new writes.
+     */
+    public List<StorageNode> nodesForChunk(int sequenceNumber, int totalCopies) {
+        List<StorageNode> candidates = availableNodes();
+        if (candidates.isEmpty()) {
+            throw new IllegalStateException("No storage nodes available");
+        }
+        int copies = Math.max(1, Math.min(totalCopies, candidates.size()));
+        int start = Math.floorMod(sequenceNumber, candidates.size());
+        List<StorageNode> result = new ArrayList<>(copies);
+        for (int i = 0; i < copies; i++) {
+            result.add(candidates.get((start + i) % candidates.size()));
+        }
+        return result;
+    }
+
+    private List<StorageNode> availableNodes() {
+        List<StorageNode> available = new ArrayList<>();
+        for (StorageNode n : orderedNodes) {
+            if (n.isAvailable()) {
+                available.add(n);
+            }
+        }
+        return available;
     }
 }

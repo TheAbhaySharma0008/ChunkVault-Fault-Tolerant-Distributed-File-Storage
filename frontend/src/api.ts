@@ -60,6 +60,16 @@ export async function listNodes(): Promise<NodeInfo[]> {
   return response.json() as Promise<NodeInfo[]>;
 }
 
+export async function setNodeAvailability(nodeName: string, available: boolean): Promise<void> {
+  const response = await fetch(
+    `/api/nodes/${encodeURIComponent(nodeName)}/availability?available=${available}`,
+    { method: 'PUT' }
+  );
+  if (!response.ok) {
+    throw new Error(`Failed to update node availability (${response.status})`);
+  }
+}
+
 export async function submitContactForm(data: ContactFormData): Promise<{ message: string }> {
   const response = await fetch('/api/contact', {
     method: 'POST',

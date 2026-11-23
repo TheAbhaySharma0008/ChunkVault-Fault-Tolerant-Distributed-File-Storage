@@ -1,218 +1,122 @@
-# ChunkVault Phase 2 Architecture
+# ChunkVault Architecture (Final)
 
 ## System Overview
 
-User → React Frontend → Spring Boot REST API → File Processing → MySQL Metadata → Simulated Storage Nodes → Retrieval → Reconstruction → User
-
-## Architecture Layers
-
-### 1. Frontend Layer (React)
-- **Framework:** React 18 with TypeScript
-- **Routing:** React Router for SPA navigation
-- **Styling:** Tailwind CSS for responsive design
-- **State Management:** React hooks (useState, useEffect)
-- **API Communication:** Fetch API with TypeScript types
-
-**Pages:**
-- Home: Landing page with product overview
-- About: Project information and concepts
-- Contact: Contact form for user feedback
-- Dashboard: Statistics and quick actions
-- Files: File management with search and delete
-- File Details: Chunk visualization and metadata
-- Storage Nodes: Node monitoring and health status
-- Upload: Drag-and-drop file upload interface
-
-### 2. Backend Layer (Spring Boot)
-- **Framework:** Spring Boot 3.2 with Java 17
-- **API:** RESTful endpoints with CORS support
-- **ORM:** JPA/Hibernate for database operations
-- **Validation:** Input validation and error handling
-
-**Controllers:**
-- `FileController`: File upload, download, listing, deletion
-- `NodeController`: Storage node status and health
-- `ContactController`: Contact form submission
-
-**Services:**
-- `FileStorageService`: File upload, chunking, reconstruction, deletion
-- `ChunkingService`: File splitting into fixed-size chunks
-- `MetadataStore`: Database-backed metadata persistence
-
-### 3. Database Layer (MySQL)
-- **Database:** MySQL 8.0
-- **ORM:** Hibernate with JPA annotations
-- **Schema:** Auto-generated via DDL update
-
-**Tables:**
-
-**files**
-- `id` (PK, auto-increment)
-- `file_id` (unique, indexed)
-- `original_filename`
-- `file_size`
-- `content_type`
-- `total_chunks`
-- `status` (ACTIVE, DELETED)
-- `upload_timestamp`
-
-**chunks**
-- `id` (PK, auto-increment)
-- `chunk_id` (unique, indexed)
-- `file_id` (FK → files.id)
-- `sequence_number`
-- `chunk_size`
-- `storage_node`
-- `status` (STORED, MISSING)
-- `created_at`
-
-**storage_nodes**
-- `id` (PK, auto-increment)
-- `node_name` (unique)
-- `status`
-- `storage_path`
-- `chunk_count`
-- `storage_used`
-- `last_health_check`
-
-**contact_messages**
-- `id` (PK, auto-increment)
-- `name`
-- `email`
-- `subject`
-- `message`
-- `submitted_at`
-
-### 4. Storage Layer (Local Filesystem)
-- **Implementation:** LocalFileSystemStorageNode
-- **Nodes:** Simulated distributed nodes (nodeA, nodeB, nodeC)
-- **Path:** Configurable storage root directory
-
-**Chunk Storage:**
-- Format: `{chunkId}.chunk`
-- Location: `{storageRoot}/{nodeName}/{chunkId}.chunk`
-- Example: `storage/nodeA/F-ABC123-C0000.chunk`
-
-## Data Flow
-
-### Upload Flow
-1. User selects file via drag-and-drop or file picker
-2. Frontend sends POST to `/api/files/upload` with multipart form data
-3. Backend validates file (size, type, content)
-4. `ChunkingService` splits file into fixed-size chunks (default: 1MB)
-5. `StorageNodeRouter` assigns each chunk to a node using round-robin
-6. Chunks are written to respective node directories
-7. Metadata is persisted to MySQL (files and chunks tables)
-8. Response with file ID, chunk distribution, and metadata returned to frontend
-
-### Download Flow
-1. User requests download via `/api/files/{fileId}/download`
-2. Backend retrieves file metadata from MySQL
-3. Chunk metadata is sorted by sequence number
-4. Each chunk is read from its assigned storage node
-5. Chunks are reassembled in sequence order
-6. Reconstructed file is returned as binary stream with proper headers
-
-### Delete Flow
-1. User requests delete via DELETE `/api/files/{fileId}`
-2. Backend retrieves file metadata from MySQL
-3. All chunk files are deleted from storage nodes
-4. Chunk records are deleted from chunks table
-5. File record is deleted from files table
-6. Transaction ensures data consistency
-
-## Chunk Distribution Algorithm
-
-**Round-Robin Strategy:**
 ```
-chunk 0 → nodeA
-chunk 1 → nodeB
-chunk 2 → nodeC
-chunk 3 → nodeA
-chunk 4 → nodeB
-...
+User → React Frontend → Spring Boot REST API → Chunking + Replication → Local Storage Nodes
+                          ↓                            ↓
+                       MySQL (metadata)        {node}/{chunkId}.chunk files
+                          ↓
+        Download: metadata → ordered chunks → primary/replica failover → SHA-256 verify → reconstruct
 ```
 
-Formula: `nodeIndex = sequenceNumber % totalNodes`
+## Layers
 
-This ensures even distribution across all available nodes.
+### 1. Frontend (React 18 + TypeScript + Vite + Tailwind)
 
-## Fault Tolerance (Phase 2 Foundation)
+Pages: Home, About, Contact, Dashboard, Files, File Details (chunk + replica visualization), Storage Nodes (health + simulated-failure button), Upload (drag-and-drop, result summary with chunk distribution table).
 
-### Current Implementation
-- **Node Health Monitoring:** Basic health check endpoint
-- **Chunk Status Tracking:** Status field in chunks table
-- **Error Handling:** Comprehensive exception handling for missing chunks
-- **Transaction Safety:** Database operations are transactional
+`src/api.ts` wraps all REST calls; `src/types.ts` mirrors backend DTOs (`ChunkInfo.replicas`, `FileMetadata.checksum/uploadTimestamp/status`).
 
-### Limitations
-- No automatic replication (single copy per chunk)
-- No automatic recovery from missing chunks
-- No redundancy across physical machines
-- No automatic failover
+### 2. Backend (Spring Boot 3.2, Java 17)
+
+- `FileController` — upload/download/list/metadata/delete under `/api/files`
+- `NodeController` — node listing, health, and `PUT /{node}/availability` outage simulation
+- `ContactController` — contact form persistence
+- `FileStorageService` — orchestrates chunking, replicated writes, failover reads, cleanup
+- `ChunkingService` — fixed-size splitter (empty file → single empty chunk)
+- `MetadataStore` — JPA-backed persistence (files + chunks in one transaction via `CascadeType.ALL`)
+- `ChecksumUtil` — SHA-256 hex helpers
+- `StorageNodeRouter` — round-robin primary selection + distinct replica selection, skipping unavailable nodes
+- `LocalFileSystemStorageNode` — `.chunk` file IO, availability flag, chunk-id sanitization (path-traversal guard)
+
+### 3. Database (MySQL 8, `ddl-auto=update`)
+
+- **files**: id, file_id (unique), original_filename, file_size, content_type, checksum, total_chunks, status, upload_timestamp
+- **chunks**: id, chunk_id (unique), file_id (FK), sequence_number, chunk_size, storage_node (primary), checksum, replica_nodes (CSV), status, created_at
+- **contact_messages**: id, name, email, subject, message, submitted_at
+- **storage_nodes**: table exists; live node stats are computed from the filesystem instead
+
+### 4. Storage Nodes
+
+Three simulated nodes (`storage/nodeA|B|C`), each a directory of `{chunkId}.chunk` files. Chunk ids are server-generated (`F-<id>-C<seq>`), so filenames cannot escape the node directory; `LocalFileSystemStorageNode` additionally rejects ids containing `/`, `\`, or `..`.
+
+## Data Flows
+
+### Upload
+1. Multipart POST → `FileStorageService.upload`
+2. Filename sanitized (basename only, control chars stripped, ≤255 chars); empty files allowed
+3. `ChunkingService.split` → fixed-size chunks
+4. File-level SHA-256 computed
+5. Per chunk: `router.nodesForChunk(seq, replicationFactor)` returns primary + distinct replicas (unavailable nodes skipped); every copy written; per-chunk SHA-256 recorded
+6. Any failure → all already-written copies deleted (compensation), error returned
+7. `MetadataStore.save` persists file + chunk rows (checksum, replica_nodes) in one transaction
+
+### Download / Reconstruction
+1. `GET /{fileId}/download` → metadata + chunks sorted by `sequence_number`
+2. Per chunk, `readChunkWithFailover` tries primary then each replica:
+   - node unknown / unavailable / missing file / IO error → next candidate
+   - SHA-256 mismatch or size mismatch → next candidate (corruption tolerated)
+3. All candidates exhausted → `ChunkMissingException` → HTTP 503 with per-node failure reasons
+4. Reassembled bytes verified against stored file size **and** file-level SHA-256
+
+### Delete
+- Every chunk copy (primary + all replicas) deleted best-effort per node; metadata rows removed transactionally afterwards.
+
+### Node Failure Simulation
+- `PUT /api/nodes/{name}/availability?available=false` flips an in-memory flag. New uploads skip the node; reads on it throw `NodeUnavailableException` (HTTP 503 if reached directly) and failover engages. Restarting the backend resets all nodes to available.
+
+## Replication
+
+- `chunkvault.replication-factor` = total copies per chunk (default **2** → 1 primary + 1 replica), clamped to `[1, configured node count]` and to currently available nodes at write time.
+- Placement: primary = round-robin over available nodes; replicas = subsequent distinct nodes in the ring — a replica never shares its primary's node (when ≥2 nodes are up).
+- Metadata: `chunks.storage_node` = primary, `chunks.replica_nodes` = CSV of replica node names.
+
+## Integrity
+
+- Per-chunk SHA-256 stored at upload; verified on every read candidate.
+- Whole-file SHA-256 stored on `files.checksum`; verified after reconstruction (legacy rows without checksums skip verification).
 
 ## Configuration
 
-**application.properties:**
 ```properties
-# Server
 server.port=8080
-
-# File Upload
 spring.servlet.multipart.max-file-size=100MB
-spring.servlet.multipart.max-request-size=100MB
-
-# Database
-spring.datasource.url=jdbc:mysql://localhost:3306/chunkvault
+spring.datasource.url=jdbc:mysql://localhost:3306/chunkvault?createDatabaseIfNotExist=true&useSSL=false&serverTimezone=UTC&allowPublicKeyRetrieval=true
 spring.datasource.username=root
-spring.datasource.password=
-spring.datasource.driver-class-name=com.mysql.cj.jdbc.Driver
-
-# JPA
+spring.datasource.password=${DB_PASSWORD}   # env var or .env file (see .env.example)
 spring.jpa.hibernate.ddl-auto=update
-spring.jpa.show-sql=false
-spring.jpa.properties.hibernate.dialect=org.hibernate.dialect.MySQLDialect
-
-# ChunkVault
 chunkvault.chunk-size-bytes=1048576
 chunkvault.storage-root=../storage
 chunkvault.nodes=nodeA,nodeB,nodeC
+chunkvault.replication-factor=2
 ```
 
 ## API Endpoints
 
-### Files
-- `POST /api/files/upload` - Upload file
-- `GET /api/files` - List all files
-- `GET /api/files/{fileId}/metadata` - Get file metadata
-- `GET /api/files/{fileId}/download` - Download file
-- `DELETE /api/files/{fileId}` - Delete file
+- `POST /api/files/upload` — multipart `file`; returns fileId, size, chunkCount, chunkSizeBytes, chunks[]{chunkId, sequenceNumber, storageNode, size, replicas[]}
+- `GET /api/files` — all files with chunks, checksum, uploadTimestamp, status
+- `GET /api/files/{fileId}/metadata`
+- `GET /api/files/{fileId}/download` — attachment download
+- `DELETE /api/files/{fileId}`
+- `GET /api/nodes`, `GET /api/nodes/{name}/health`
+- `PUT /api/nodes/{name}/availability?available={bool}`
+- `POST /api/contact`
 
-### Nodes
-- `GET /api/nodes` - List all nodes with status
-- `GET /api/nodes/{nodeName}/health` - Get node health
+## Error Handling
 
-### Contact
-- `POST /api/contact` - Submit contact form
+`GlobalExceptionHandler` maps: FileNotFound → 404, InvalidUpload → 400, NodeUnavailable → 503, ChunkMissing (all copies failed) → 503 with per-node reasons, DataIntegrityViolation → 409, IllegalArgument → 400, IllegalState → 500, generic → 500. Responses are JSON `{timestamp, status, error, message}`.
 
-## Phase 2 Improvements Over Phase 1
+## Testing
 
-1. **Persistent Metadata:** MySQL database replaces in-memory storage
-2. **Professional UI:** Complete navigation and polished pages
-3. **File Management:** Full CRUD operations for files
-4. **Node Monitoring:** Dedicated page for storage node status
-5. **Error Handling:** Comprehensive exception handling
-6. **Contact Form:** User feedback collection
-7. **Dashboard:** Real-time statistics and overview
-8. **Search & Filter:** Enhanced file discovery
+- `ChunkingServiceTest` (5), `StorageNodeTest` (3), `FileStorageServiceFaultToleranceTest` (10, no DB), `UploadDownloadIntegrationTest` (4, Spring Boot + MySQL) — **22 tests, all passing** via `cd backend && mvn test`.
+- Frontend verified with `npm run build` (tsc + vite).
+- Live smoke test performed: upload → identical download (SHA-256 match) → node failure → failover download → all-nodes-down → 503 → delete → all copies removed.
 
-## Phase 3 Roadmap
+## Known Limitations
 
-1. **Multi-Machine Deployment:** Physical node distribution
-2. **Replication:** Configurable replication factor
-3. **Automatic Recovery:** Chunk reconstruction from replicas
-4. **Authentication:** User accounts and permissions
-5. **Integrity Verification:** SHA-256 checksums
-6. **Advanced Monitoring:** Real-time alerts and metrics
-7. **Cloud Integration:** S3 or object storage backend
-8. **Containerization:** Docker and Kubernetes deployment
+- Simulated nodes share one filesystem; availability flags are in-memory.
+- Whole file buffered in memory on upload/download (bounded by 100 MB upload cap).
+- `storage_nodes` table unused; node stats computed per request.
+- No auth; CORS `*`; DB credentials come from `DB_PASSWORD` env var / gitignored `.env`.
+- Replica repair (re-creating a lost copy while the node is back) is not implemented — recovery is read-time failover only.

@@ -160,10 +160,19 @@ export default function FileDetails() {
                       <span className="text-xs text-slate-500">{formatBytes(chunk.size)}</span>
                     </div>
                     <div className="text-xs font-mono text-slate-500 break-all">{chunk.chunkId}</div>
-                    <div className="mt-2 flex items-center gap-2">
+                    <div className="mt-2 flex flex-wrap items-center gap-2">
                       <span className="rounded-full bg-sky-950 px-2 py-0.5 text-xs text-sky-300">
                         {chunk.storageNode}
                       </span>
+                      {(chunk.replicas ?? []).map((replica) => (
+                        <span
+                          key={replica}
+                          className="rounded-full bg-slate-800 px-2 py-0.5 text-xs text-slate-400"
+                          title="Replica copy"
+                        >
+                          replica: {replica}
+                        </span>
+                      ))}
                     </div>
                   </div>
                 ))}

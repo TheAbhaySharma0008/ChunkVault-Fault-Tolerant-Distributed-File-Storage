@@ -1,20 +1,32 @@
 package com.chunkvault.model;
 
+import java.util.ArrayList;
+import java.util.List;
+
 public class ChunkMetadata {
     private String chunkId;
     private String fileId;
     private int sequenceNumber;
     private String storageNode;
     private long size;
+    private String checksum;
+    private List<String> replicas = new ArrayList<>();
 
     public ChunkMetadata() {}
 
     public ChunkMetadata(String chunkId, String fileId, int sequenceNumber, String storageNode, long size) {
+        this(chunkId, fileId, sequenceNumber, storageNode, size, null, new ArrayList<>());
+    }
+
+    public ChunkMetadata(String chunkId, String fileId, int sequenceNumber, String storageNode,
+                         long size, String checksum, List<String> replicas) {
         this.chunkId = chunkId;
         this.fileId = fileId;
         this.sequenceNumber = sequenceNumber;
         this.storageNode = storageNode;
         this.size = size;
+        this.checksum = checksum;
+        this.replicas = replicas == null ? new ArrayList<>() : replicas;
     }
 
     public String getChunkId() { return chunkId; }
@@ -31,4 +43,10 @@ public class ChunkMetadata {
 
     public long getSize() { return size; }
     public void setSize(long size) { this.size = size; }
+
+    public String getChecksum() { return checksum; }
+    public void setChecksum(String checksum) { this.checksum = checksum; }
+
+    public List<String> getReplicas() { return replicas; }
+    public void setReplicas(List<String> replicas) { this.replicas = replicas; }
 }

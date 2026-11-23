@@ -1,103 +1,81 @@
-# ChunkVault — Phase 2
+# ChunkVault — Fault-Tolerant Distributed File Storage
 
-A fault-tolerant distributed file storage system built as an academic OS + DBMS project.
+An academic distributed file storage system demonstrating OS concepts (chunking, distributed storage, fault tolerance) and DBMS concepts (JPA/Hibernate, MySQL persistence, transactions).
 
 ## Overview
 
-ChunkVault is a distributed file storage system that breaks files into smaller chunks and distributes them across multiple storage nodes. This approach provides fault tolerance and reliability by ensuring that no single point of failure can compromise the entire storage system.
+ChunkVault splits uploaded files into fixed-size chunks, distributes them across simulated storage nodes with replication, persists all metadata in MySQL, and reconstructs files on download with SHA-256 integrity verification and automatic failover to replica copies.
 
-**Phase 2 Status:** Approximately 75% complete with persistent metadata, professional UI, and comprehensive file management.
+## Features
 
-## Implemented Features (Phase 2)
+### Implemented and Tested
+- File upload via React UI (drag-and-drop or file picker) with loading/error feedback
+- Fixed-size chunking (default 1 MiB, configurable via `chunkvault.chunk-size-bytes`)
+- Round-robin primary placement across storage nodes
+- **Replication**: each chunk is copied to `replication-factor` distinct nodes (default 2; replica never shares the primary's node)
+- **SHA-256 checksums** for the whole file and every chunk, verified on reconstruction
+- **Failover recovery**: download tries primary, then replicas; corrupted/missing/unavailable copies are skipped automatically
+- Empty-file, small-file, exact-chunk-size and multi-chunk edge cases handled
+- Upload compensation: failed uploads delete already-written chunk copies (no orphans)
+- File listing, metadata view, chunk visualization, deletion (removes all copies + metadata)
+- Simulated node outage via `PUT /api/nodes/{node}/availability?available=false` (no data deleted) + UI button on Storage Nodes page
+- MySQL persistence (`files`, `chunks`, `contact_messages` tables); `storage_nodes` table exists but live stats are computed from disk
+- Contact form, dashboard statistics, storage-node monitoring
 
-### Core Functionality
-- File upload with drag-and-drop support
-- Automatic file chunking (configurable chunk size)
-- Round-robin chunk distribution across storage nodes
-- File reconstruction and download
-- File deletion with metadata cleanup
-- MySQL database for persistent metadata storage
+### Partially Implemented / Known Limitations
+- Storage nodes are local filesystem directories, not physical machines
+- Node availability flags are in-memory (reset on backend restart)
+- `storage_nodes` DB table is not kept in sync with live node stats (stats are computed on read)
+- No authentication/authorization; CORS is open (`*`) for the academic demo
+- Files are buffered in memory during upload/reconstruction (fine for the 100 MB limit)
+- Replication factor is capped by the number of configured nodes
 
-### Database Layer
-- MySQL with JPA/Hibernate ORM
-- Tables: `files`, `chunks`, `storage_nodes`, `contact_messages`
-- Entity relationships with foreign keys
-- Transactional data operations
+### Future Work
+- Multi-machine deployment, automatic replica repair, authentication, encryption at rest, Swagger docs, Docker/Kubernetes
 
-### User Interface
-- Professional landing page with product overview
-- Dashboard with real-time statistics
-- Files page with search, filtering, and management
-- File details with chunk visualization
-- Storage nodes monitoring page
-- About Us page with project information
-- Contact Us page with form submission
-- Responsive design with Tailwind CSS
+## Tech Stack
 
-### API Endpoints
-- `POST /api/files/upload` - Upload a file
-- `GET /api/files` - List all files
-- `GET /api/files/{fileId}/metadata` - Get file metadata
-- `GET /api/files/{fileId}/download` - Download/reconstruct file
-- `DELETE /api/files/{fileId}` - Delete a file
-- `GET /api/nodes` - List storage nodes with status
-- `GET /api/nodes/{nodeName}/health` - Get node health
-- `POST /api/contact` - Submit contact form
+- **Backend:** Java 17+, Spring Boot 3.2, Spring Data JPA, Hibernate, Maven
+- **Database:** MySQL 8.x, database `chunkvault`
+- **Frontend:** React 18, TypeScript, Vite, Tailwind CSS, React Router
+- **Storage:** local filesystem nodes `storage/nodeA`, `nodeB`, `nodeC`
 
-### Storage Infrastructure
-- Simulated local filesystem storage nodes (Node A, B, C)
-- Round-robin chunk distribution
-- Node health monitoring
-- Storage usage tracking
+## Prerequisites
 
-## Not Yet Implemented (Future Work)
-
-- Multi-machine distributed deployment
-- Advanced replication strategies
-- Automatic failover across physical machines
-- SHA-256 integrity verification
-- Authentication and authorization
-- Encryption at rest
-- Cloud object storage integration
-- Advanced monitoring and alerting
-- Containerized deployment (Docker/Kubernetes)
-- Large-scale benchmarking
-
-## Requirements
-
-- Java 17+
-- Maven 3.9+
+- Java 17+ and Maven 3.9+
 - Node.js 18+ and npm
-- MySQL 8.0+
+- MySQL 8.x running on `localhost:3306`
 
-## Database Setup
+## Setup
 
-1. Install MySQL 8.0+ and start the MySQL service
-2. Create a database (optional - the app will auto-create if configured):
-   ```sql
-   CREATE DATABASE chunkvault;
-   ```
-3. Update `backend/src/main/resources/application.properties` with your MySQL credentials:
-   ```properties
-   spring.datasource.url=jdbc:mysql://localhost:3306/chunkvault
-   spring.datasource.username=root
-   spring.datasource.password=your_password
-   ```
+### Database
 
-## Run Backend
+```sql
+CREATE DATABASE chunkvault;
+```
+
+Hibernate (`ddl-auto=update`) creates/updates the schema automatically. The database password is **not** stored in the repo — provide it via the `DB_PASSWORD` environment variable or a local `.env` file:
+
+```properties
+spring.datasource.url=jdbc:mysql://localhost:3306/chunkvault?createDatabaseIfNotExist=true&useSSL=false&serverTimezone=UTC&allowPublicKeyRetrieval=true
+spring.datasource.username=root
+spring.datasource.password=${DB_PASSWORD}
+```
+
+Option A — environment variable (PowerShell): `$env:DB_PASSWORD="your_password"` then `cd backend; mvn spring-boot:run`
+
+Option B — `.env` file (gitignored): copy `.env.example` to `.env` in the project root and set `DB_PASSWORD=...`. The backend loads it automatically; real environment variables take precedence.
+
+### Backend
 
 ```powershell
 cd backend
 mvn spring-boot:run
 ```
 
-Backend: `http://localhost:8080`
+Runs on `http://localhost:8080`.
 
-The backend will automatically create the database schema using Hibernate DDL.
-
-## Run Frontend
-
-In a second terminal:
+### Frontend
 
 ```powershell
 cd frontend
@@ -105,85 +83,103 @@ npm install
 npm run dev
 ```
 
-Open the Vite URL, normally `http://localhost:5173`.
+Runs on `http://localhost:5173` (proxies `/api` to `:8080`). Production build: `npm run build`.
+
+## Configuration (`application.properties`)
+
+```properties
+chunkvault.chunk-size-bytes=1048576   # 1 MiB
+chunkvault.storage-root=../storage    # relative to backend working dir
+chunkvault.nodes=nodeA,nodeB,nodeC
+chunkvault.replication-factor=2       # total copies per chunk (primary + replicas)
+```
+
+## API Reference
+
+| Method | Endpoint | Description |
+|---|---|---|
+| POST | `/api/files/upload` | Multipart upload (`file` field); returns fileId, chunk count, per-chunk node + replicas |
+| GET | `/api/files` | List all files with chunk metadata |
+| GET | `/api/files/{fileId}/metadata` | File metadata incl. SHA-256 checksum, timestamp, status |
+| GET | `/api/files/{fileId}/download` | Reconstruct and download (fails over to replicas) |
+| DELETE | `/api/files/{fileId}` | Delete all chunk copies and metadata |
+| GET | `/api/nodes` | Node status, health, chunk counts, storage used |
+| GET | `/api/nodes/{nodeName}/health` | Single-node health |
+| PUT | `/api/nodes/{nodeName}/availability?available=false` | Simulate node outage/recovery |
+| POST | `/api/contact` | Submit contact message |
+
+## Metadata Schema
+
+- **files**: `id`, `file_id` (unique), `original_filename`, `file_size`, `content_type`, `checksum` (SHA-256), `total_chunks`, `status`, `upload_timestamp`
+- **chunks**: `id`, `chunk_id` (unique), `file_id` (FK → files), `sequence_number`, `chunk_size`, `storage_node` (primary), `checksum`, `replica_nodes` (comma-separated), `status`, `created_at`
+- **contact_messages**: `id`, `name`, `email`, `subject`, `message`, `submitted_at`
+- **storage_nodes**: defined but currently unused by the API (live stats come from the filesystem)
+
+Chunk files on disk: `{storage-root}/{nodeName}/{chunkId}.chunk`, e.g. `storage/nodeA/F-1A2B3C4D5E6F-C0000.chunk`.
+
+## Verification Queries
+
+```sql
+-- File records
+SELECT file_id, original_filename, file_size, total_chunks, status FROM files;
+
+-- Chunk records with replica locations
+SELECT chunk_id, sequence_number, storage_node, replica_nodes, checksum FROM chunks ORDER BY file_id, sequence_number;
+
+-- Orphaned chunk rows (file deleted but chunks remain)
+SELECT c.* FROM chunks c LEFT JOIN files f ON c.file_id = f.id WHERE f.id IS NULL;
+```
+
+## Testing
+
+```powershell
+cd backend
+mvn test
+```
+
+Test classes:
+- `ChunkingServiceTest` — chunk splitting, ordering, empty file
+- `StorageNodeTest` — node read/write/delete, missing chunk
+- `FileStorageServiceFaultToleranceTest` — replication placement, failover on missing/corrupted/down primary, total-outage error, upload cleanup, delete cleanup, replication factor 1 (no DB required)
+- `UploadDownloadIntegrationTest` — Spring Boot + MySQL upload/download round-trip
+
+Frontend: `cd frontend && npm run build`.
 
 ## Demo Workflow
 
-1. Open the application at `http://localhost:5173`
-2. Navigate to Dashboard or click "Get Started"
-3. Upload a file using the drag-and-drop interface
-4. View the chunk distribution and storage nodes used
-5. Navigate to Files page to see all uploaded files
-6. Click on a file to view detailed chunk visualization
-7. Download the file to verify reconstruction
-8. Delete the file and confirm cleanup
-9. Check Storage Nodes page to monitor node status
-10. Visit About and Contact pages for project information
-
-## Architecture
-
-- **Frontend:** React 18, TypeScript, Tailwind CSS, React Router
-- **Backend:** Spring Boot 3.2, JPA/Hibernate, MySQL
-- **Storage:** Local filesystem nodes (simulated distributed storage)
-- **Chunk Size:** Configurable (default: 1MB)
-- **Max File Size:** 100MB
+1. `cd backend && mvn spring-boot:run`, then `cd frontend && npm run dev`
+2. Open `http://localhost:5173`, upload a file on the Upload page
+3. Files page → Details shows chunk-to-node distribution and replicas
+4. Download the file — bytes are identical to the original (SHA-256 verified server-side)
+5. Storage Nodes page → "Simulate Node Failure" on a node → download again: reconstruction fails over to replicas transparently
+6. Take all nodes down → download returns `503` with the list of failed copies
+7. Restore nodes, delete the file → all `.chunk` files removed from every node directory
 
 ## Project Structure
 
 ```
 ChunkVault/
 ├── backend/
-│   ├── src/main/java/com/chunkvault/
-│   │   ├── entity/          # JPA entities
-│   │   ├── repository/      # JPA repositories
-│   │   ├── controller/      # REST controllers
-│   │   ├── service/         # Business logic
-│   │   ├── storage/         # Storage node implementations
-│   │   ├── model/           # DTOs
-│   │   ├── config/          # Configuration
-│   │   └── exception/       # Exception handling
-│   └── src/main/resources/
-│       └── application.properties
-├── frontend/
-│   ├── src/
-│   │   ├── components/      # Reusable components
-│   │   ├── pages/           # Page components
-│   │   ├── api.ts           # API client
-│   │   └── types.ts         # TypeScript types
-│   └── package.json
-├── storage/
-│   ├── nodeA/
-│   ├── nodeB/
-│   └── nodeC/
-└── docs/
-    └── ARCHITECTURE.md
+│   └── src/main/java/com/chunkvault/
+│       ├── entity/          # JPA entities (File, Chunk, StorageNode, ContactMessage)
+│       ├── repository/      # Spring Data JPA repositories
+│       ├── controller/      # REST controllers
+│       ├── service/         # FileStorageService, ChunkingService, MetadataStore, ChecksumUtil
+│       ├── storage/         # StorageNode interface, LocalFileSystemStorageNode, StorageNodeRouter
+│       ├── model/           # DTOs
+│       ├── config/          # StorageProperties
+│       └── exception/       # Global exception handler + typed exceptions
+├── frontend/src/            # React pages, api client, types
+├── storage/node{A,B,C}/     # simulated storage nodes
+└── docs/ARCHITECTURE.md
 ```
-
-## Known Limitations
-
-- Storage nodes are local filesystem directories (not physical machines)
-- No automatic replication or redundancy
-- No authentication/authorization
-- MySQL must be running locally
-- Single-instance deployment only
-
-## Phase 3 Roadmap
-
-- Multi-node distributed deployment across physical machines
-- Configurable replication factor for redundancy
-- Automatic chunk recovery from replicas
-- Authentication system with user accounts
-- Advanced monitoring dashboard
-- RESTful API documentation with Swagger
-- Performance benchmarking and optimization
 
 ## Academic Context
 
-This project demonstrates:
-- **OS Concepts:** File systems, distributed storage, process management, fault tolerance
-- **DBMS Concepts:** Relational database design, ORM, transactions, entity relationships
-- **Full-Stack Development:** REST APIs, React frontend, database integration
+- **OS concepts:** file chunking, distributed/replicated storage, fault detection and recovery, simulated node failure
+- **DBMS concepts:** relational schema, FK relationships, JPA/Hibernate ORM, transactions, integrity constraints
+- **Full-stack:** REST API + React/TypeScript frontend + MySQL persistence
 
 ## License
 
-Academic project - Not for production use.
+Academic project — not for production use.
