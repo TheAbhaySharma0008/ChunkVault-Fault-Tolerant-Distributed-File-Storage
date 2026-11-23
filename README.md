@@ -29,7 +29,6 @@ ChunkVault splits uploaded files into fixed-size chunks, distributes them across
 - No authentication/authorization; CORS is open (`*`) for the academic demo
 - Files are buffered in memory during upload/reconstruction (fine for the 100 MB limit)
 - Replication factor is capped by the number of configured nodes
-- `spring.datasource.password` currently has a local-dev default in `application.properties`; move it to the `DB_PASSWORD` env var before sharing the repo
 
 ### Future Work
 - Multi-machine deployment, automatic replica repair, authentication, encryption at rest, Swagger docs, Docker/Kubernetes
@@ -55,13 +54,17 @@ ChunkVault splits uploaded files into fixed-size chunks, distributes them across
 CREATE DATABASE chunkvault;
 ```
 
-Hibernate (`ddl-auto=update`) creates/updates the schema automatically. Configure credentials in `backend/src/main/resources/application.properties` or via the `DB_PASSWORD` environment variable:
+Hibernate (`ddl-auto=update`) creates/updates the schema automatically. The database password is **not** stored in the repo — provide it via the `DB_PASSWORD` environment variable or a local `.env` file:
 
 ```properties
 spring.datasource.url=jdbc:mysql://localhost:3306/chunkvault?createDatabaseIfNotExist=true&useSSL=false&serverTimezone=UTC&allowPublicKeyRetrieval=true
 spring.datasource.username=root
-spring.datasource.password=${DB_PASSWORD:...}
+spring.datasource.password=${DB_PASSWORD}
 ```
+
+Option A — environment variable (PowerShell): `$env:DB_PASSWORD="your_password"` then `cd backend; mvn spring-boot:run`
+
+Option B — `.env` file (gitignored): copy `.env.example` to `.env` in the project root and set `DB_PASSWORD=...`. The backend loads it automatically; real environment variables take precedence.
 
 ### Backend
 

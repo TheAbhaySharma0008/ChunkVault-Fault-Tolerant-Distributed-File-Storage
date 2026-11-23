@@ -84,7 +84,7 @@ server.port=8080
 spring.servlet.multipart.max-file-size=100MB
 spring.datasource.url=jdbc:mysql://localhost:3306/chunkvault?createDatabaseIfNotExist=true&useSSL=false&serverTimezone=UTC&allowPublicKeyRetrieval=true
 spring.datasource.username=root
-spring.datasource.password=${DB_PASSWORD:...}
+spring.datasource.password=${DB_PASSWORD}   # env var or .env file (see .env.example)
 spring.jpa.hibernate.ddl-auto=update
 chunkvault.chunk-size-bytes=1048576
 chunkvault.storage-root=../storage
@@ -118,5 +118,5 @@ chunkvault.replication-factor=2
 - Simulated nodes share one filesystem; availability flags are in-memory.
 - Whole file buffered in memory on upload/download (bounded by 100 MB upload cap).
 - `storage_nodes` table unused; node stats computed per request.
-- No auth; CORS `*`; DB password has a local-dev default (use `DB_PASSWORD` env var).
+- No auth; CORS `*`; DB credentials come from `DB_PASSWORD` env var / gitignored `.env`.
 - Replica repair (re-creating a lost copy while the node is back) is not implemented — recovery is read-time failover only.
