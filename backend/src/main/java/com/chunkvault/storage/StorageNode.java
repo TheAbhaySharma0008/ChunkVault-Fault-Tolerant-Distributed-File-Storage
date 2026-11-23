@@ -6,4 +6,6 @@ public interface StorageNode {
     byte[] readChunk(String chunkId);
     boolean exists(String chunkId);
     void deleteChunk(String chunkId);
+    boolean isAvailable();
+    void setAvailable(boolean available);
 }

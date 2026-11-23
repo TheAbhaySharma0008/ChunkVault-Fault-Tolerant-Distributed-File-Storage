@@ -3,6 +3,7 @@ export interface ChunkInfo {
   sequenceNumber: number;
   storageNode: string;
   size: number;
+  replicas?: string[];
 }
 
 export interface UploadResponse {
@@ -19,6 +20,8 @@ export interface FileMetadata {
   fileName: string;
   fileSize: number;
   chunks: ChunkInfo[];
+  checksum?: string;
+  contentType?: string;
   uploadTimestamp?: string;
   status?: string;
 }

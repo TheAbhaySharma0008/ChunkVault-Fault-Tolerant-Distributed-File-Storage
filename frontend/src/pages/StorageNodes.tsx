@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { listNodes } from '../api';
+import { listNodes, setNodeAvailability } from '../api';
 import type { NodeInfo } from '../types';
 
 function formatBytes(bytes: number): string {
@@ -11,20 +11,37 @@ function formatBytes(bytes: number): string {
 export default function StorageNodes() {
   const [nodes, setNodes] = useState<NodeInfo[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+
+  async function loadNodes() {
+    try {
+      const data = await listNodes();
+      setNodes(data);
+      setError('');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to load nodes');
+    } finally {
+      setLoading(false);
+    }
+  }
 
   useEffect(() => {
-    async function loadNodes() {
-      try {
-        const data = await listNodes();
-        setNodes(data);
-      } catch (err) {
-        console.error('Failed to load nodes:', err);
-      } finally {
-        setLoading(false);
-      }
-    }
     loadNodes();
   }, []);
+
+  const handleToggleAvailability = async (node: NodeInfo) => {
+    const takeDown = node.status === 'ACTIVE';
+    const action = takeDown ? 'take offline' : 'bring back online';
+    if (!confirm(`Simulate ${action} for ${node.nodeName}? ${takeDown ? 'Downloads will fail over to replicas.' : ''}`)) {
+      return;
+    }
+    try {
+      await setNodeAvailability(node.nodeName, !takeDown);
+      await loadNodes();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to update node');
+    }
+  };
 
   if (loading) {
     return (
@@ -41,6 +58,12 @@ export default function StorageNodes() {
           <h1 className="text-4xl font-bold tracking-tight text-slate-100">Storage Nodes</h1>
           <p className="mt-2 text-lg text-slate-400">Monitor your distributed storage infrastructure</p>
         </div>
+
+        {error && (
+          <div className="mt-4 rounded-lg border border-red-800 bg-red-950/40 p-3 text-sm text-red-300">
+            {error}
+          </div>
+        )}
 
         <div className="mt-8 grid grid-cols-1 gap-6 lg:grid-cols-3">
           {nodes.map((node) => (
@@ -101,10 +124,23 @@ export default function StorageNodes() {
                     </div>
                     <div className="flex justify-between">
                       <span className="text-slate-400">Health Check</span>
-                      <span className="text-emerald-400">Passed</span>
+                      <span className={node.health === 'HEALTHY' ? 'text-emerald-400' : 'text-red-400'}>
+                        {node.health}
+                      </span>
                     </div>
                   </div>
                 </div>
+
+                <button
+                  onClick={() => handleToggleAvailability(node)}
+                  className={`w-full rounded-lg px-4 py-2 text-sm font-semibold transition-colors ${
+                    node.status === 'ACTIVE'
+                      ? 'bg-red-500/10 text-red-400 hover:bg-red-500/20'
+                      : 'bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20'
+                  }`}
+                >
+                  {node.status === 'ACTIVE' ? 'Simulate Node Failure' : 'Restore Node'}
+                </button>
               </div>
             </div>
           ))}
@@ -146,9 +182,10 @@ export default function StorageNodes() {
               In a production deployment, these would be separate physical machines or cloud storage instances.
             </p>
             <p>
-              Chunks are distributed across nodes using a round-robin algorithm, ensuring even distribution
-              and fault tolerance. If one node becomes unavailable, the system can still reconstruct files
-              from the remaining nodes (advanced recovery coming in Phase 3).
+              Chunks are distributed across nodes using a round-robin algorithm and replicated to a
+              second node (configurable replication factor). If a node or chunk copy fails, downloads
+              automatically recover from a verified replica using SHA-256 checksums. Use the
+              "Simulate Node Failure" button to demonstrate failover without deleting any data.
             </p>
           </div>
         </div>

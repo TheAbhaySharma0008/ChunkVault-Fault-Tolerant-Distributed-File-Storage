@@ -26,6 +26,12 @@ public class ChunkEntity {
     @Column(nullable = false)
     private String storageNode;
 
+    @Column
+    private String checksum;
+
+    @Column(length = 512)
+    private String replicaNodes;
+
     @Column(nullable = false)
     private String status = "STORED";
 
@@ -34,7 +40,7 @@ public class ChunkEntity {
 
     public ChunkEntity() {}
 
-    public ChunkEntity(String chunkId, FileEntity file, Integer sequenceNumber, 
+    public ChunkEntity(String chunkId, FileEntity file, Integer sequenceNumber,
                       Long chunkSize, String storageNode) {
         this.chunkId = chunkId;
         this.file = file;
@@ -42,6 +48,13 @@ public class ChunkEntity {
         this.chunkSize = chunkSize;
         this.storageNode = storageNode;
         this.createdAt = LocalDateTime.now();
+    }
+
+    public ChunkEntity(String chunkId, FileEntity file, Integer sequenceNumber,
+                      Long chunkSize, String storageNode, String checksum, String replicaNodes) {
+        this(chunkId, file, sequenceNumber, chunkSize, storageNode);
+        this.checksum = checksum;
+        this.replicaNodes = replicaNodes;
     }
 
     public Long getId() { return id; }
@@ -61,6 +74,12 @@ public class ChunkEntity {
 
     public String getStorageNode() { return storageNode; }
     public void setStorageNode(String storageNode) { this.storageNode = storageNode; }
+
+    public String getChecksum() { return checksum; }
+    public void setChecksum(String checksum) { this.checksum = checksum; }
+
+    public String getReplicaNodes() { return replicaNodes; }
+    public void setReplicaNodes(String replicaNodes) { this.replicaNodes = replicaNodes; }
 
     public String getStatus() { return status; }
     public void setStatus(String status) { this.status = status; }

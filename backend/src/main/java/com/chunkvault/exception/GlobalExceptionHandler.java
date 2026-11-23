@@ -17,9 +17,14 @@ public class GlobalExceptionHandler {
         return build(HttpStatus.NOT_FOUND, ex.getMessage());
     }
 
+    @ExceptionHandler(NodeUnavailableException.class)
+    public ResponseEntity<Map<String, Object>> handleNodeUnavailable(NodeUnavailableException ex) {
+        return build(HttpStatus.SERVICE_UNAVAILABLE, ex.getMessage());
+    }
+
     @ExceptionHandler(ChunkMissingException.class)
     public ResponseEntity<Map<String, Object>> handleChunkMissing(ChunkMissingException ex) {
-        return build(HttpStatus.INTERNAL_SERVER_ERROR, ex.getMessage());
+        return build(HttpStatus.SERVICE_UNAVAILABLE, ex.getMessage());
     }
 
     @ExceptionHandler(InvalidUploadException.class)

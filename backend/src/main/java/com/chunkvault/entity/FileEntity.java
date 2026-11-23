@@ -24,6 +24,9 @@ public class FileEntity {
     @Column
     private String contentType;
 
+    @Column(length = 64)
+    private String checksum;
+
     @Column(nullable = false)
     private Integer totalChunks;
 
@@ -33,7 +36,7 @@ public class FileEntity {
     @Column(nullable = false)
     private LocalDateTime uploadTimestamp;
 
-    @OneToMany(mappedBy = "file", cascade = CascadeType.ALL, orphanRemoval = true)
+    @OneToMany(mappedBy = "file", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.EAGER)
     private List<ChunkEntity> chunks = new ArrayList<>();
 
     public FileEntity() {}
@@ -62,6 +65,9 @@ public class FileEntity {
 
     public String getContentType() { return contentType; }
     public void setContentType(String contentType) { this.contentType = contentType; }
+
+    public String getChecksum() { return checksum; }
+    public void setChecksum(String checksum) { this.checksum = checksum; }
 
     public Integer getTotalChunks() { return totalChunks; }
     public void setTotalChunks(Integer totalChunks) { this.totalChunks = totalChunks; }
